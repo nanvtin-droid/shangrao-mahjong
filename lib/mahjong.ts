@@ -3,6 +3,12 @@ export type Difficulty = 'easy' | 'medium' | 'hard';
 export type Meld = { type: 'chi' | 'peng' | 'gang' | 'angang' | 'bugang'; tiles: number[]; from: number };
 export type Player = { name: string; hand: number[]; melds: Meld[]; discards: number[] };
 export type Action = { type: 'hu' | 'peng' | 'chi' | 'gang' | 'angang' | 'bugang' | 'pass'; player: number; tile?: number; tiles?: number[]; label: string };
+export type TableCall = {
+  id: number;
+  player: number;
+  type: 'discard' | Exclude<Action['type'], 'pass'>;
+  tile?: number;
+};
 export type Win = { name: string; points: number; natural: boolean };
 export type GameState = {
   version: 1; difficulty: Difficulty; phase: 'discard' | 'claim' | 'ended'; current: number;
@@ -11,6 +17,7 @@ export type GameState = {
   log: string[]; winner: number | null;
   result: { title: string; description: string; points: number; breakdown: string[] } | null;
   turn: number; drawnTile: number | null; seed: number;
+  lastCall?: TableCall;
 };
 export type Hint = { index: number; tile: number; title: string; reason: string; waitingTiles: number[] };
 const CHINESE = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
@@ -20,6 +27,13 @@ const isTerminal = (t: number) => t >= 27 || t % 9 === 0 || t % 9 === 8;
 const sorted = (a: number[]) => a.sort((a, b) => a - b);
 const copy = (s: GameState): GameState => JSON.parse(JSON.stringify(s));
 export function tileName(t: number): string { if (!validTile(t)) return '未知牌'; return t >= 27 ? HONORS[t - 27] ?? '未知牌' : `${CHINESE[t % 9]}${['万', '筒', '条'][Math.floor(t / 9)]}`; }
+export function tableCallText(call: TableCall): string {
+  const verbs = { discard: '', chi: '吃', peng: '碰', gang: '明杠', angang: '暗杠', bugang: '加杠', hu: '胡了' };
+  if (call.type === 'hu') return '胡了！自摸！';
+  const honorNames = ['东风', '南风', '西风', '北风', '红中', '发财', '白板'];
+  const name = call.tile === undefined ? '' : honorNames[call.tile - 27] ?? tileName(call.tile);
+  return `${verbs[call.type]}${name}！`;
+}
 export function getWild(indicator: number): number {
   if (indicator < 27) return Math.floor(indicator / 9) * 9 + (indicator + 1) % 9;
   if (indicator < 31) return 27 + (indicator - 26) % 4;
@@ -27,6 +41,9 @@ export function getWild(indicator: number): number {
 }
 function random(s: GameState): number { s.seed = (Math.imul(s.seed, 1664525) + 1013904223) >>> 0; return s.seed / 4294967296; }
 function log(s: GameState, message: string) { s.log = [...s.log.slice(-79), message]; }
+function call(s: GameState, player: number, type: TableCall['type'], tile?: number) {
+  s.lastCall = { id: (s.lastCall?.id ?? 0) + 1, player, type, tile };
+}
 function countsFor(hand: number[], wild: number) { const c = Array<number>(34).fill(0); let w = 0; for (const t of hand) t === wild ? w++ : c[t]++; return { c, w }; }
 function standard(c: number[], w: number, groups: number): boolean {
   const memo = new Map<string, boolean>();
@@ -261,6 +278,7 @@ function processDiscard(s: GameState, index: number) {
   const player = s.current; const p = s.players[player];
   const [tile] = p.hand.splice(index, 1); p.discards.push(tile);
   s.lastDiscard = { player, tile }; s.drawnTile = null;
+  call(s, player, 'discard', tile);
   log(s, `${p.name}打出${tileName(tile)}${tile === s.wild ? '（宝牌打出不作吃碰杠）' : ''}。`);
   const candidates: Action[] = [];
   for (let offset = 1; offset < 4; offset++) {
@@ -284,6 +302,7 @@ function sameAction(a: Action, b: Action): boolean { return a.type === b.type &&
 function finishWin(s: GameState, player: number) {
   const win = evaluateWin(s.players[player].hand, s.wild, s.players[player].melds); if (!win) return;
   s.phase = 'ended'; s.winner = player; s.pendingClaims = [];
+  call(s, player, 'hu');
   s.result = { title: `${s.players[player].name}自摸 · ${win.name}`, description: player === 0 ? '这一声胡，茶馆都听见啦！' : '牌桌没有白坐的功夫，下一杯茶轮到你胡。', points: win.points, breakdown: [`${win.name}基础分：${win.points - (win.natural ? 1 : 0)}`, win.natural ? '无宝成牌奖励：+1' : '使用宝牌辅助：+0', '仅取最高牌型，不叠加；虚拟教学分，不含地方奖金、包赔与货币结算。'] };
   log(s, `${s.players[player].name}自摸${win.name}！教学分 ${win.points}。`);
 }
@@ -296,6 +315,7 @@ function applyAction(s: GameState, action: Action) {
     draw(s, (s.lastDiscard!.player + 1) % 4); return;
   }
   const tile = action.tile!;
+  call(s, player, action.type, action.type === 'angang' && player !== 0 ? undefined : tile);
   if (action.type === 'angang') {
     p.hand = p.hand.filter(t => t !== tile);
     p.melds.push({ type: 'angang', tiles: [tile, tile, tile, tile], from: player });

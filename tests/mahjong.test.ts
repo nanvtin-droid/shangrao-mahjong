@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-ignore Node's native TypeScript runner requires an explicit extension.
-import { createGame, getWild, evaluateWin, discardTile, playerActions, act, stepBot, recommendedDiscard, getHint, tileName } from '../lib/mahjong.ts';
+import { createGame, getWild, evaluateWin, discardTile, playerActions, act, stepBot, recommendedDiscard, getHint, tileName, tableCallText } from '../lib/mahjong.ts';
 import type { GameState, Meld } from '../lib/mahjong.ts';
 function rng(seed = 42) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 function inventory(s: GameState) { const all = [s.indicator, ...s.wall, ...s.players.flatMap(p => [...p.hand, ...p.discards, ...p.melds.flatMap(m => m.tiles)])]; return Array.from({ length: 34 }, (_, t) => all.filter(x => x === t).length); }
@@ -98,6 +98,8 @@ test('kong claims precede lower-priority chow claims after an actual discard', (
  s.players[3].hand=[4,7,10,13,16,19,22,25,27,28,29,30,31];
  const after=discardTile(s,0); assert.equal(after.phase,'claim'); assert.equal(after.current,2); assert.equal(after.pendingClaims[0].type,'gang');
  const claimed=stepBot(after); assert.equal(claimed.players[2].melds[0].type,'gang'); assert.equal(claimed.players[1].melds.length,0);
+ assert.deepEqual(after.lastCall,{id:1,player:0,type:'discard',tile:3});
+ assert.deepEqual(claimed.lastCall,{id:2,player:2,type:'gang',tile:3});
 });
 test('added-kong replacement can produce a valid self-draw win', () => {
  const s=createGame('medium',rng()); s.wild=33; s.players[0].hand=[0,3,4,5,9,10,11,18,19,20,27];
@@ -105,6 +107,8 @@ test('added-kong replacement can produce a valid self-draw win', () => {
  const next=act(s,playerActions(s).find(a=>a.type==='bugang')!);
  const hu=playerActions(next).find(a=>a.type==='hu'); assert.ok(hu); assert.equal(next.drawnTile,27);
  const won=act(next,hu!); assert.equal(won.phase,'ended'); assert.equal(won.winner,0);
+ assert.equal(next.lastCall?.type,'bugang');
+ assert.equal(won.lastCall?.type,'hu');
 });
 test('empty, missing, non-turn and ended hands produce safe hints without undefined labels', () => {
  const s=createGame('easy',rng()); s.players[0].hand=[]; assert.equal(getHint(s).index,-1); assert.ok(!getHint(s).title.includes('undefined'));
@@ -119,4 +123,20 @@ test('a real bot discard pauses on the human peng decision until it is answered'
  s.players[1].hand=[4,7,10,13,16,19,22,25,28,29,30,31,32];
  s.players[2].hand=[4,7,10,13,16,19,22,25,28,29,30,31,32];
  const next=stepBot(s); assert.equal(next.phase,'claim'); assert.equal(next.current,0); assert.ok(playerActions(next).some(a=>a.type==='peng')); assert.strictEqual(stepBot(next),next);
+});
+
+test('table calls name discards and claims without exposing a bot concealed kong', () => {
+ const s = createGame('medium',rng());
+ s.current = 1;
+ s.wild = 33;
+ s.drawnTile = null;
+ s.players[1].hand = [0,0,0,0,1,2,3,4,5,9,10,11,18,19];
+ const kong = stepBot(s).lastCall;
+ assert.equal(kong?.type,'angang');
+ assert.equal(kong?.player,1);
+ assert.equal(kong?.tile,undefined);
+ assert.equal(tableCallText(kong!),'暗杠！');
+ assert.equal(tableCallText({ id: 1, player: 0, type: 'discard', tile: 32 }),'发财！');
+ assert.equal(tableCallText({ id: 2, player: 2, type: 'chi', tile: 9 }),'吃一筒！');
+ assert.equal(tableCallText({ id: 3, player: 3, type: 'peng', tile: 27 }),'碰东风！');
 });

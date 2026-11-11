@@ -2,13 +2,14 @@
 import { useEffect,useMemo,useRef,useState } from 'react';
 import { ArrowRight, ArrowLeft, BookOpen, Check, CheckCircle2, ChevronRight, Coffee, Flag, Headphones, HelpCircle, Home, Leaf, Lightbulb, Menu, Music2, Pause, Play, RotateCcw, Settings2, ShieldCheck, Sparkles, Target, Trophy, UserRound, Volume2, VolumeX, X, Cloud, CircleDot, ScrollText } from 'lucide-react';
 import { lessons,quizzes,levelNames,type Lesson } from '@/lib/content';
-import { createGame,discardTile,playerActions,act,stepBot,getHint,tileName,type GameState,type Difficulty,type Action } from '@/lib/mahjong';
+import { createGame,discardTile,playerActions,act,stepBot,getHint,tileName,tableCallText,type GameState,type Difficulty,type Action } from '@/lib/mahjong';
 import { TeahouseAudio,NarrationPlayer,type NarrationState } from '@/lib/audio';
 import { Tile } from './tile';
 
 type View='home'|'learn'|'practice'|'play'|'rules'|'profile';
 type RecordItem={key:string;type:'lesson'|'quiz'|'game';title:string;at:number;won?:boolean;points?:number};
 const navs:{id:View;label:string;icon:typeof Home}[]=[{id:'home',label:'茶馆首页',icon:Home},{id:'learn',label:'学点门道',icon:BookOpen},{id:'practice',label:'练练手感',icon:Target},{id:'play',label:'入座开局',icon:CircleDot},{id:'rules',label:'上饶规矩',icon:ScrollText}];
+const tableVoices = [{ rate: 1.12, pitch: 1 }, { rate: 1.22, pitch: 1.16 }, { rate: 1.13, pitch: 1.27 }, { rate: 1.04, pitch: .78 }];
 const difficultyNames={easy:'新手茶桌',medium:'茶馆常客',hard:'高手切磋'};
 const mergeRecords=(a:RecordItem[],b:RecordItem[])=>Array.from(new Map([...a,...b].map(r=>[r.key,r])).values());
 function Dialog({title,children,onClose,wide=false}:{title:string;children:React.ReactNode;onClose:()=>void;wide?:boolean}){
@@ -18,18 +19,41 @@ function Dialog({title,children,onClose,wide=false}:{title:string;children:React
 }
 export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displayName:string}){
  const [view,setView]=useState<View>('home'),[records,setRecords]=useState<RecordItem[]>([]),[loaded,setLoaded]=useState(false),[cloudStatus,setCloudStatus]=useState('本机保存'),[music,setMusic]=useState(false),[voice,setVoice]=useState(false),[volume,setVolume]=useState(.35),[settings,setSettings]=useState(false),[mobileNav,setMobileNav]=useState(false),[toast,setToast]=useState(''),[lesson,setLesson]=useState<Lesson|null>(null),[lessonAnswer,setLessonAnswer]=useState<number|null>(null),[lessonFilter,setLessonFilter]=useState(-1),[quizLevel,setQuizLevel]=useState(0),[quizIndex,setQuizIndex]=useState(0),[quizAnswer,setQuizAnswer]=useState<number|null>(null),[difficulty,setDifficulty]=useState<Difficulty>('easy'),[game,setGame]=useState<GameState|null>(null),[selected,setSelected]=useState<number|null>(null),[paused,setPaused]=useState(false),[hint,setHint]=useState<ReturnType<typeof getHint>|null>(null),[confirmNew,setConfirmNew]=useState(false),[narrationState,setNarrationState]=useState<NarrationState>('idle'),[riverOpen,setRiverOpen]=useState(false);
+ const [tableVoice, setTableVoice] = useState(true);
+ const heardCallId = useRef(0);
+ const voiceUnavailable = useRef(false);
  const narrator=useRef<NarrationPlayer|null>(null);
- const audio=useRef<TeahouseAudio|null>(null), narrationStamp=useRef(''), syncReady=useRef(false);
+ const audio=useRef<TeahouseAudio|null>(null), syncReady=useRef(false);
  const notify=(text:string)=>setToast(text);
- useEffect(()=>{audio.current=new TeahouseAudio();audio.current.onState=setMusic;narrator.current=new NarrationPlayer();narrator.current.onState=setNarrationState;narrator.current.onUnavailable=()=>notify('这台设备暂无可用中文语音，文字讲解仍可阅读。');try{const saved=JSON.parse(localStorage.getItem('rao-progress-v1')||'[]');if(Array.isArray(saved))setRecords(saved.filter(r=>r&&typeof r.key==='string'&&['lesson','quiz','game'].includes(r.type)));const savedGame=JSON.parse(localStorage.getItem('rao-game-v1')||'null');if(savedGame?.version===1&&savedGame.players?.length===4&&['discard','claim','ended'].includes(savedGame.phase)){setGame(savedGame);setDifficulty(savedGame.difficulty);}const prefs=JSON.parse(localStorage.getItem('rao-prefs')||'{}');setVoice(prefs.voice===true);if(typeof prefs.volume==='number')setVolume(prefs.volume);}catch{}setLoaded(true);const navigate=()=>{const h=location.hash.slice(1) as View;if([...navs.map(x=>x.id),'profile'].includes(h))setView(h);};navigate();window.addEventListener('hashchange',navigate);return()=>{audio.current?.stop();narrator.current?.stop();window.removeEventListener('hashchange',navigate);};},[]);
+ useEffect(()=>{audio.current=new TeahouseAudio();audio.current.onState=setMusic;narrator.current=new NarrationPlayer();narrator.current.onState=setNarrationState;narrator.current.onUnavailable = () => {
+   if (voiceUnavailable.current) return;
+   voiceUnavailable.current = true;
+   notify('这台设备暂无可用中文语音，仍可看牌桌文字。');
+  };try{const saved=JSON.parse(localStorage.getItem('rao-progress-v1')||'[]');if(Array.isArray(saved))setRecords(saved.filter(r=>r&&typeof r.key==='string'&&['lesson','quiz','game'].includes(r.type)));const savedGame=JSON.parse(localStorage.getItem('rao-game-v1')||'null');if(savedGame?.version===1&&savedGame.players?.length===4&&['discard','claim','ended'].includes(savedGame.phase)){heardCallId.current = savedGame.lastCall?.id ?? 0;setGame(savedGame);setDifficulty(savedGame.difficulty);}const prefs=JSON.parse(localStorage.getItem('rao-prefs')||'{}');setVoice(prefs.voice===true);setTableVoice(prefs.tableVoice!==false);if(typeof prefs.volume==='number')setVolume(prefs.volume);}catch{}setLoaded(true);const navigate=()=>{const h=location.hash.slice(1) as View;if([...navs.map(x=>x.id),'profile'].includes(h))setView(h);};navigate();window.addEventListener('hashchange',navigate);return()=>{audio.current?.stop();narrator.current?.stop();window.removeEventListener('hashchange',navigate);};},[]);
  useEffect(()=>{if(!toast)return;const id=setTimeout(()=>setToast(''),4500);return()=>clearTimeout(id);},[toast]);
  useEffect(()=>{if(!loaded)return;try{localStorage.setItem('rao-progress-v1',JSON.stringify(records));}catch{notify('本机存储空间不足，登录后可使用云端进度。');}},[records,loaded]);
- useEffect(()=>{if(!loaded)return;try{localStorage.setItem('rao-prefs',JSON.stringify({voice,volume}));}catch{}audio.current?.volume(volume);},[voice,volume,loaded]);
+ useEffect(()=>{if(!loaded)return;try{localStorage.setItem('rao-prefs',JSON.stringify({voice,tableVoice,volume}));}catch{}audio.current?.volume(volume);},[voice,tableVoice,volume,loaded]);
  useEffect(()=>{if(!loaded||!signedIn){syncReady.current=true;return;}let cancelled=false;fetch('/api/progress').then(r=>{if(!r.ok)throw new Error();return r.json() as Promise<{records:RecordItem[]}>;}).then(d=>{if(!cancelled){setRecords(p=>mergeRecords(p,d.records));setCloudStatus('云端已同步');}}).catch(()=>{if(!cancelled)setCloudStatus('暂存本机 · 云端待连接');}).finally(()=>{syncReady.current=true;});return()=>{cancelled=true;};},[loaded,signedIn]);
  useEffect(()=>{if(!loaded||!signedIn||!syncReady.current||!records.length)return;const timer=setTimeout(async()=>{setCloudStatus('正在同步');try{for(let i=0;i<records.length;i+=100){const res=await fetch('/api/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({records:records.slice(i,i+100)})});if(!res.ok)throw new Error();}setCloudStatus('云端已同步');}catch{setCloudStatus('暂存本机 · 云端待连接');}},800);return()=>clearTimeout(timer);},[records,loaded,signedIn]);
  useEffect(()=>{if(!game||!loaded)return;try{localStorage.setItem('rao-game-v1',JSON.stringify(game));}catch{}if(game.phase==='ended'){const key=`game:${game.seed}-${game.turn}`;setRecords(r=>r.some(x=>x.key===key)?r:[...r,{key,type:'game',title:game.result?.title||'流局',won:game.winner===0,points:game.winner===0?game.result?.points:0,at:Date.now()}]);}},[game,loaded]);
- useEffect(()=>{if(!game||view!=='play'||paused||game.phase==='ended'||game.current===0)return;const timer=setTimeout(()=>{setGame(g=>g?stepBot(g):g);},difficulty==='easy'?1250:850);return()=>clearTimeout(timer);},[game,view,paused,difficulty]);
- useEffect(()=>{if(!voice||!game||view!=='play'||paused||narrator.current?.state==='paused')return;const stamp=`${game.turn}-${game.phase}-${game.current}`;if(stamp===narrationStamp.current)return;narrationStamp.current=stamp;if(game.phase==='ended')speak(game.result?.description||'本局结束');else if(game.current===0)speak(game.phase==='claim'?'有牌可接。先看看吃碰杠，再决定要不要。':'轮到你了，选一张牌，再点击出这张。');},[game,voice,view,paused]);
+ useEffect(() => {
+  const call = game?.lastCall;
+  if (!call || call.id === heardCallId.current) return;
+  heardCallId.current = call.id;
+  if (view !== 'play' || !tableVoice || paused || voiceUnavailable.current) return;
+  const name = game.players[call.player].name;
+  narrator.current?.enqueueCall(`${name}，${tableCallText(call)}`, tableVoices[call.player]);
+ }, [game, view, tableVoice, paused]);
+ useEffect(() => {
+  if (!game || view !== 'play' || paused || game.phase === 'ended' || game.current === 0) return;
+  // Let each shout finish before the next bot move. Muting or pausing speech never stalls the game.
+  const baseDelay = difficulty === 'easy' ? 1250 : 850;
+  const delay = tableVoice && !voiceUnavailable.current
+   ? narrationState === 'playing' ? 4500 : narrationState === 'idle' ? 460 : baseDelay
+   : baseDelay;
+  const timer = setTimeout(() => setGame(current => current ? stepBot(current) : current), delay);
+  return () => clearTimeout(timer);
+ }, [game, view, paused, difficulty, tableVoice, narrationState]);
  const speak=(text:string)=>narrator.current?.speak(text);
  const toggleNarration=()=>{if(narrationState==='paused')narrator.current?.resume();else narrator.current?.pause();};
  const go=(next:View)=>{setView(next);setMobileNav(false);location.hash=next;window.scrollTo({top:0,behavior:'smooth'});narrator.current?.stop();};
@@ -38,7 +62,27 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
  const record=(r:Omit<RecordItem,'at'>)=>setRecords(old=>old.some(x=>x.key===r.key)?old:[...old,{...r,at:Date.now()}]);
  const openLesson=(l:Lesson)=>{setLesson(l);setLessonAnswer(null);if(voice)speak(`${l.title}。${l.sections.map(s=>s.title+'。'+s.text).join('。')}`);};
  const toggleMusic=async()=>{if(music){audio.current?.stop();setMusic(false);}else{try{await audio.current?.start(volume);setMusic(true);}catch{notify('背景音乐暂未启动，请点按后重试。');}}};
- const startGame=()=>{setGame(createGame(difficulty));setSelected(null);setHint(null);setPaused(false);setConfirmNew(false);go('play');if(voice)speak('欢迎入座。三位茶馆牌友已经到齐。先认一认宝牌，再打出你的第一张牌。');};
+ const toggleTableVoice = () => {
+  setTableVoice(!tableVoice);
+  if (tableVoice) narrator.current?.stop();
+  else {
+   voiceUnavailable.current = false;
+   narrator.current?.enqueueCall('牌桌喊话已开启。', tableVoices[0]);
+  }
+ };
+ const startGame = () => {
+  heardCallId.current = 0;
+  setGame(createGame(difficulty));
+  setSelected(null);
+  setHint(null);
+  setPaused(false);
+  setConfirmNew(false);
+  go('play');
+  if (tableVoice) {
+   voiceUnavailable.current = false;
+   narrator.current?.enqueueCall('开局！', tableVoices[0]);
+  }
+ };
  const playAction=(a:Action)=>{if(paused)return;setGame(g=>g?act(g,a):g);setSelected(null);setHint(null);};
  const actions=game?playerActions(game):[];
  const bank=quizzes.filter(q=>q.level===quizLevel),quiz=bank[quizIndex%bank.length];
@@ -54,7 +98,7 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
   </aside>
   {mobileNav&&<button className="nav-overlay" aria-label="关闭菜单" onClick={()=>setMobileNav(false)}/>}
   <div className="main-shell">
-   <header className="topbar"><div className="breadcrumbs"><button className="icon-button mobile-menu" aria-label="打开菜单" onClick={()=>setMobileNav(!mobileNav)}><Menu size={22}/></button><span className="desktop-crumb">研习社 <ChevronRight size={14}/></span><strong>{headerTitle}</strong></div><div className="topbar-actions"><span className="tea-weather"><Leaf size={14}/> 今日宜摸牌</span><button className={`sound-toggle ${music?'on':''}`} onClick={toggleMusic} aria-label={music?'暂停背景音乐《流水》':'播放背景音乐《流水》'} aria-pressed={music}>{music?<Pause size={16}/>:<Play size={16}/>}<span>{music?'暂停音乐':'播放音乐'}</span><span className="equalizer"><i/><i/><i/></span></button><button className={`icon-button ${voice?'active-icon':''}`} title="旁白开关" aria-label={voice?'关闭旁白':'开启旁白'} aria-pressed={voice} onClick={()=>{setVoice(!voice);if(!voice)speak('欢迎来到饶有牌趣。我是你的茶馆小师傅，陪你慢慢学会这手牌。');else narrator.current?.stop();}}>{voice?<Volume2 size={19}/>:<VolumeX size={19}/>}</button><button className="avatar-button" onClick={()=>go('profile')} aria-label="我的学习档案">茶</button></div></header>
+   <header className="topbar"><div className="breadcrumbs"><button className="icon-button mobile-menu" aria-label="打开菜单" onClick={()=>setMobileNav(!mobileNav)}><Menu size={22}/></button><span className="desktop-crumb">研习社 <ChevronRight size={14}/></span><strong>{headerTitle}</strong></div><div className="topbar-actions"><span className="tea-weather"><Leaf size={14}/> 今日宜摸牌</span><button className={`sound-toggle ${music?'on':''}`} onClick={toggleMusic} aria-label={music?'暂停背景音乐《流水》':'播放背景音乐《流水》'} aria-pressed={music}>{music?<Pause size={16}/>:<Play size={16}/>}<span>{music?'暂停音乐':'播放音乐'}</span><span className="equalizer"><i/><i/><i/></span></button><button className={`icon-button ${(view==='play'?tableVoice:voice)?'active-icon':''}`} title={view==='play'?'牌桌喊话':'旁白开关'} aria-label={view==='play'?(tableVoice?'关闭牌桌喊话':'开启牌桌喊话'):(voice?'关闭旁白':'开启旁白')} aria-pressed={view==='play'?tableVoice:voice} onClick={view==='play'?toggleTableVoice:()=>{setVoice(!voice);if(!voice)speak('欢迎来到饶有牌趣。我是你的茶馆小师傅，陪你慢慢学会这手牌。');else narrator.current?.stop();}}>{(view==='play'?tableVoice:voice)?<Volume2 size={19}/>:<VolumeX size={19}/>}</button><button className="avatar-button" onClick={()=>go('profile')} aria-label="我的学习档案">茶</button></div></header>
    <main id="main-content" className={`main-content view-${view}`}>
    {view==='home'&&<>
     <div className="welcome-line"><span>欢迎来坐坐，{displayName} <span className="wave">✦</span></span><span>学一手本地规矩，交几个牌桌朋友。</span></div>
@@ -72,6 +116,10 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
    {view==='play'&&<><div className="game-page-heading"><PageTitle eyebrow="THE TABLE IS READY" title="三缺一，就等你。" text="你 + 三位机器人牌友 · 上饶麻将茶馆教学规则 v1"/><button className="text-button" onClick={()=>go('rules')}><HelpCircle size={17}/> 本桌怎么玩</button></div>
     {!game?<section className="lobby"><div className="lobby-scene"><div className="lobby-label"><span className="online-dot"/> 茶已沏好，牌已洗好</div><div className="lobby-table"><div className="lobby-player top"><span>桂</span><strong>桂花婶</strong><small>「牌可以输，气势不能。」</small></div><div className="lobby-player left"><span>胡</span><strong>胡老师</strong><small>老茶客，爱琢磨</small></div><div className="lobby-player right"><span>饶</span><strong>阿饶</strong><small>年轻牌友，性子活</small></div><div className="lobby-table-center"><div className="logo-medallion">饶</div><p>虚席以待</p></div><div className="empty-seat">你的位置 <ArrowRight size={16}/></div></div></div><div className="lobby-options"><span className="eyebrow subtle">选一张适合你的茶桌</span><h2>今天，打得从容一点。</h2><div className="difficulty-options">{(['easy','medium','hard'] as Difficulty[]).map((d,i)=><button key={d} className={difficulty===d?'selected':''} onClick={()=>setDifficulty(d)}><span className="difficulty-number">{i+1}</span><span><strong>{difficultyNames[d]}</strong><small>{['慢一点，有提示。轻松认识整局流程。','更重视搭子与成牌效率，适合熟悉规则后。','结合公开牌河取舍，暗手依旧公平保密。'][i]}</small></span>{difficulty===d&&<CheckCircle2 size={20}/>}</button>)}</div><button className="button primary large" onClick={startGame}>入座，开一局<ArrowRight size={19}/></button><p className="lobby-disclaimer">不涉及金钱 · 随时暂停 · 每局你先坐庄</p></div></section>:<>
      <div className="game-toolbar"><span className="pill"><span className="online-dot"/>{difficultyNames[game.difficulty]}</span><span className="game-round">第 {game.turn} 次摸打</span><div><button className="text-button" onClick={()=>setRiverOpen(true)}><ScrollText size={16}/>四家牌河</button><button className="text-button" onClick={()=>setPaused(!paused)} disabled={game.phase==='ended'}>{paused?<Play size={16}/>:<Pause size={16}/>} {paused?'继续':'暂停'}</button><button className="text-button" onClick={()=>setConfirmNew(true)}><RotateCcw size={16}/> 新开一局</button></div></div>
+     <div className="table-call" role="status">
+      <Volume2 size={15} aria-hidden="true"/>
+      {game.lastCall ? <><strong>{game.players[game.lastCall.player].name}</strong><span>{tableCallText(game.lastCall)}</span></> : <span>牌桌喊话{tableVoice?'已开启':'已关闭'}</span>}
+     </div>
      <div className="game-layout"><section className="mahjong-table" aria-label="四人麻将牌桌">
       <div className="table-grain"/><div className={`seat opponent top ${game.current===2&&game.phase!=='ended'?'current':''}`}><span className="player-avatar peach">桂</span><div><strong>桂花婶 <small>西</small></strong><p>{game.current===2&&game.phase!=='ended'?'让我琢磨琢磨…':'牌可以输，气势不能。'}</p></div><div className="hidden-hand">{game.players[2].hand.map((t,i)=><Tile key={i} id={t} small back={game.phase!=='ended'}/>)}</div><Melds game={game} player={2}/></div>
       <div className={`seat opponent right ${game.current===1&&game.phase!=='ended'?'current':''}`}><span className="player-avatar gold">饶</span><strong>阿饶 <small>南</small></strong><span className="opponent-count">暗手 {game.players[1].hand.length} 张</span><div className="side-hidden-hand">{game.players[1].hand.map((t,i)=><Tile key={i} id={t} small back={game.phase!=='ended'}/>)}</div><Melds game={game} player={1}/></div>
@@ -91,7 +139,7 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
    </main>
   </div>
   <nav className="mobile-bottom" aria-label="手机导航">{navs.slice(0,4).map(({id,label,icon:Icon})=><button className={view===id?'active':''} key={id} onClick={()=>go(id)}><Icon size={21}/><span>{label}</span></button>)}</nav>
-  {(music||narrationState!=='idle')&&<div className="audio-now-playing" role="region" aria-label="声音播放控制">{music&&<span><Music2 size={15}/>《流水》<button onClick={toggleMusic} aria-label="暂停音乐"><Pause size={14}/>暂停</button></span>}{narrationState!=='idle'&&<span><Volume2 size={15}/>小师傅旁白<button onClick={toggleNarration} aria-label={narrationState==='paused'?'继续旁白':'暂停旁白'}>{narrationState==='paused'?<Play size={14}/>:<Pause size={14}/>} {narrationState==='paused'?'继续':'暂停'}</button><button onClick={()=>narrator.current?.stop()} aria-label="停止旁白"><X size={14}/></button></span>}</div>}
+  {(music||narrationState!=='idle')&&<div className="audio-now-playing" role="region" aria-label="声音播放控制">{music&&<span><Music2 size={15}/>《流水》<button onClick={toggleMusic} aria-label="暂停音乐"><Pause size={14}/>暂停</button></span>}{narrationState!=='idle'&&<span><Volume2 size={15}/>{view==='play'?'牌桌语音':'小师傅旁白'}<button onClick={toggleNarration} aria-label={narrationState==='paused'?'继续旁白':'暂停旁白'}>{narrationState==='paused'?<Play size={14}/>:<Pause size={14}/>} {narrationState==='paused'?'继续':'暂停'}</button><button onClick={()=>narrator.current?.stop()} aria-label="停止旁白"><X size={14}/></button></span>}</div>}
   {riverOpen&&game&&<Dialog title="四家牌河 · 全部已出牌" onClose={()=>setRiverOpen(false)} wide><div className="river-overview">{game.players.map((p,i)=><section key={i}><h3>{['你 · 东家','阿饶 · 南家','桂花婶 · 西家','胡老师 · 北家'][i]}<span>{p.discards.length} 张</span></h3><div>{p.discards.length?p.discards.map((t,j)=><Tile key={j} id={t} wild={t===game.wild}/>):<p>尚未出牌，第一张牌等会儿就来。</p>}</div></section>)}</div></Dialog>}
   {toast&&<div className="toast" role="status"><Coffee size={18}/>{toast}<button aria-label="关闭提示" onClick={()=>setToast('')}><X size={15}/></button></div>}
   {lesson&&<Dialog title={`第 ${String(lessons.indexOf(lesson)+1).padStart(2,'0')} 课 · ${levelNames[lesson.level]}`} onClose={()=>{setLesson(null);narrator.current?.stop();}} wide><article className="lesson-reader"><span className="eyebrow subtle">一节小课 · {lesson.minutes} 分钟</span><h1>{lesson.title}</h1><p className="lesson-subtitle">{lesson.subtitle}</p><div className="lesson-audio-controls"><button className="button light narration-button" onClick={()=>speak(lesson.sections.map(s=>s.title+'。'+s.text).join('。'))}><Volume2 size={17}/> 听师傅讲一遍</button>{narrationState!=='idle'&&<button className="button light narration-button" onClick={toggleNarration}>{narrationState==='paused'?<Play size={17}/>:<Pause size={17}/>} {narrationState==='paused'?'继续旁白':'暂停旁白'}</button>}</div>{lesson.sections.map((s,i)=><section key={s.title}><h2><span>{i+1}</span>{s.title}</h2><p>{s.text}</p>{s.tiles&&<div className="lesson-tiles">{s.tiles.map((t,j)=><Tile id={t} key={j}/>)}</div>}</section>)}<aside className="lesson-tip"><Lightbulb size={23}/><p>{lesson.tip}</p></aside><section className="lesson-check"><span className="eyebrow subtle">喝口茶，答个小问题</span><h3>{lesson.question}</h3><div className="quiz-options">{lesson.options.map((o,i)=><button key={o} className={`quiz-option ${lessonAnswer===i?(i===lesson.answer?'correct':'incorrect'):''}`} onClick={()=>setLessonAnswer(i)}><span>{String.fromCharCode(65+i)}</span>{o}{lessonAnswer===i&&i===lesson.answer&&<Check size={18}/>}</button>)}</div>{lessonAnswer!==null&&<p className={lessonAnswer===lesson.answer?'correct-text':'incorrect-text'} role="status">{lessonAnswer===lesson.answer?'答对了！这门道，学会了。':'差一点。往上翻翻讲解，再试一次吧。'}</p>}<button className="button primary large" disabled={lessonAnswer!==lesson.answer} onClick={()=>{record({key:`lesson:${lesson.id}`,type:'lesson',title:lesson.title});const idx=lessons.indexOf(lesson);if(idx<lessons.length-1){openLesson(lessons[idx+1]);document.querySelector('.modal')?.scrollTo({top:0,behavior:'smooth'});}else{setLesson(null);go('learn');notify('十节小课都读到了，去牌桌试试身手吧！');}}}>{lessons.indexOf(lesson)===lessons.length-1?'记下这课，学以致用':'记下这课，继续下一节'}<ArrowRight size={17}/></button></section></article></Dialog>}
