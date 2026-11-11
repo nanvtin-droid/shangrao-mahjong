@@ -10,6 +10,7 @@ export type TableCall = {
   tile?: number;
 };
 export type Win = { name: string; points: number; natural: boolean };
+export type DiceRoll = readonly [number, number];
 export type GameState = {
   version: 1; difficulty: Difficulty; phase: 'discard' | 'claim' | 'ended'; current: number;
   players: Player[]; wall: number[]; indicator: number; wild: number;
@@ -18,6 +19,9 @@ export type GameState = {
   result: { title: string; description: string; points: number; breakdown: string[] } | null;
   turn: number; drawnTile: number | null; seed: number;
   lastCall?: TableCall;
+  dealer?: number;
+  dice?: DiceRoll;
+  replacementDraws?: number;
 };
 export type Hint = { index: number; tile: number; title: string; reason: string; waitingTiles: number[] };
 const CHINESE = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
@@ -142,15 +146,51 @@ export function evaluateWin(hand: number[], wild: number, melds: Meld[] = []): W
   }
   return found.sort((a, b) => b.points - a.points)[0] ?? null;
 }
-export function createGame(difficulty: Difficulty = 'easy', rng: () => number = Math.random): GameState {
+export const seatWinds = ['东', '南', '西', '北'] as const;
+const startingWallCounts = [21, 20, 21, 20];
+const startingWallSize = startingWallCounts.reduce((sum, count) => sum + count, 0);
+
+export function dealerFromDice([first, second]: DiceRoll): number {
+  return (first + second - 1) % 4;
+}
+
+/** Map the remaining draw pile to double stacks, indexed by physical seat. */
+export function getWallStacks(game: GameState): number[][] {
+  const consumed = Math.max(0, startingWallSize - game.wall.length);
+  const tail = Math.min(consumed, game.replacementDraws ?? 0);
+  const head = consumed - tail;
+  const sides: number[][] = [];
+  let position = 0;
+  for (const [offset, count] of startingWallCounts.entries()) {
+    const stacks = Array.from({ length: Math.ceil(count / 2) }, (_, stack) => {
+      const start = position + stack * 2;
+      const end = Math.min(start + 2, position + count);
+      return Math.max(0, Math.min(end, startingWallSize - tail) - Math.max(start, head));
+    });
+    sides[((game.dealer ?? 0) + offset) % 4] = stacks;
+    position += count;
+  }
+  return sides;
+}
+
+export function createGame(difficulty: Difficulty = 'easy', rng: () => number = Math.random, dice?: DiceRoll): GameState {
   const deck = Array.from({ length: 136 }, (_, i) => Math.floor(i / 4));
   for (let i = deck.length - 1; i > 0; i--) { const j = Math.min(i, Math.max(0, Math.floor(rng() * (i + 1)))); [deck[i], deck[j]] = [deck[j], deck[i]]; }
   const indicator = deck.pop()!;
   const names = ['你', '阿饶', '桂花婶', '胡老师'];
   const players = names.map(name => ({ name, hand: [] as number[], melds: [] as Meld[], discards: [] as number[] }));
   for (let i = 0; i < 13; i++) for (const p of players) p.hand.push(deck.pop()!);
-  const extra = deck.pop()!; players[0].hand.push(extra); players.forEach(p => sorted(p.hand));
-  return { version: 1, difficulty, phase: 'discard', current: 0, players, wall: deck, indicator, wild: getWild(indicator), lastDiscard: null, pendingClaims: [], log: [`茶已沏好。翻出${tileName(indicator)}，${tileName(getWild(indicator))}是本局宝牌。`, '你坐庄，先出一张牌。'], winner: null, result: null, turn: 1, drawnTile: extra, seed: Math.floor(rng() * 4294967295) >>> 0 };
+  const dealer = dice ? dealerFromDice(dice) : 0;
+  const extra = deck.pop()!;
+  players[dealer].hand.push(extra);
+  players.forEach(player => sorted(player.hand));
+  const wild = getWild(indicator);
+  const log = [
+    ...(dice ? [`骰子掷出 ${dice[0]} 和 ${dice[1]}，数到${seatWinds[dealer]}家。`] : []),
+    `翻出${tileName(indicator)}，${tileName(wild)}是本局宝牌。`,
+    `${players[dealer].name}坐庄，先出一张牌。`,
+  ];
+  return { version: 1, difficulty, phase: 'discard', current: dealer, dealer, dice, players, wall: deck, indicator, wild, lastDiscard: null, pendingClaims: [], log, winner: null, result: null, turn: 1, drawnTile: extra, seed: Math.floor(rng() * 4294967295) >>> 0 };
 }
 function selfActions(s: GameState, player: number): Action[] {
   if (s.phase !== 'discard' || s.current !== player) return [];
@@ -199,6 +239,7 @@ function draw(s: GameState, player: number, replacement = false) {
   s.pendingClaims = []; s.current = player; s.drawnTile = null;
   if (!s.wall.length) { endDraw(s); return; }
   const tile = replacement ? s.wall.shift()! : s.wall.pop()!;
+  if (replacement) s.replacementDraws = (s.replacementDraws ?? 0) + 1;
   s.players[player].hand.push(tile); sorted(s.players[player].hand);
   s.drawnTile = tile; s.phase = 'discard'; s.turn++;
   log(s, `${s.players[player].name}${replacement ? '杠后补牌' : '摸牌'}${player === 0 ? `：${tileName(tile)}` : '。'}`);

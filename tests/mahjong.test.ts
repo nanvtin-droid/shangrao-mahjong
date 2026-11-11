@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 // @ts-ignore Node's native TypeScript runner requires an explicit extension.
-import { createGame, getWild, evaluateWin, discardTile, playerActions, act, stepBot, recommendedDiscard, getHint, tileName, tableCallText } from '../lib/mahjong.ts';
+import { createGame, getWild, evaluateWin, discardTile, playerActions, act, stepBot, recommendedDiscard, getHint, tileName, tableCallText, dealerFromDice, getWallStacks } from '../lib/mahjong.ts';
 import type { GameState, Meld } from '../lib/mahjong.ts';
 function rng(seed = 42) { return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; }; }
 function inventory(s: GameState) { const all = [s.indicator, ...s.wall, ...s.players.flatMap(p => [...p.hand, ...p.discards, ...p.melds.flatMap(m => m.tiles)])]; return Array.from({ length: 34 }, (_, t) => all.filter(x => x === t).length); }
@@ -50,7 +50,7 @@ test('concealed and added kongs replace from the back and conserve tiles', () =>
  const s=createGame('medium',rng()); s.wild=33; s.players[0].hand=[0,0,0,0,1,2,3,4,5,9,10,11,18,19];
  const before=inventory(s); const oldWall=s.wall.length; const back=s.wall[0];
  const action=playerActions(s).find(a=>a.type==='angang')!; assert.ok(action);
- const after=act(s,action); assert.deepEqual(inventory(after),before); assert.equal(after.wall.length,oldWall-1); assert.equal(after.drawnTile,back); assert.equal(after.players[0].hand.length,11); assert.equal(after.players[0].melds[0].tiles.length,4);
+ const after=act(s,action); assert.deepEqual(inventory(after),before); assert.equal(after.wall.length,oldWall-1); assert.equal(after.drawnTile,back); assert.equal(after.replacementDraws,1); assert.equal(after.players[0].hand.length,11); assert.equal(after.players[0].melds[0].tiles.length,4);
  const added=createGame('medium',rng()); added.wild=33; added.players[0].hand=[0,1,2,3,4,5,9,10,11,18,19]; added.players[0].melds=[{type:'peng',tiles:[0,0,0],from:2}];
  const beforeAdd=inventory(added); const add=playerActions(added).find(a=>a.type==='bugang')!; assert.ok(add);
  const afterAdd=act(added,add); assert.deepEqual(inventory(afterAdd),beforeAdd); assert.equal(afterAdd.players[0].melds[0].type,'bugang'); assert.equal(afterAdd.players[0].melds[0].tiles.length,4);
@@ -139,4 +139,36 @@ test('table calls name discards and claims without exposing a bot concealed kong
  assert.equal(tableCallText({ id: 1, player: 0, type: 'discard', tile: 32 }),'发财！');
  assert.equal(tableCallText({ id: 2, player: 2, type: 'chi', tile: 9 }),'吃一筒！');
  assert.equal(tableCallText({ id: 3, player: 3, type: 'peng', tile: 27 }),'碰东风！');
+});
+
+
+test('dice count clockwise from East and the selected dealer really goes first', () => {
+ for (const [dealer, dice] of [[0, [2, 3]], [1, [1, 1]], [2, [1, 2]], [3, [2, 2]]] as const) {
+  assert.equal(dealerFromDice(dice), dealer);
+  const game = createGame('medium', rng(), dice);
+  assert.equal(game.current, dealer);
+  assert.equal(game.dealer, dealer);
+  assert.equal(game.players[dealer].hand.length, 14);
+  assert.ok(game.players.every((player, seat) => player.hand.length === (seat === dealer ? 14 : 13)));
+  assert.deepEqual(inventory(game), Array(34).fill(4));
+  if (dealer !== 0) {
+   assert.equal(discardTile(game, 0), game);
+   const firstMove = stepBot(game);
+   assert.equal(firstMove.lastCall?.player, dealer);
+  }
+ }
+});
+
+test('four double-stack walls lose one tile at the correct end of the draw pile', () => {
+ const game = createGame('medium', rng(), [1, 1]);
+ const count = (wall: number[]) => wall.reduce((sum, stack) => sum + stack, 0);
+ assert.deepEqual(getWallStacks(game).map(count), [20, 21, 20, 21]);
+ game.wall.pop();
+ assert.deepEqual(getWallStacks(game).map(count), [20, 20, 20, 21]);
+ game.wall.shift();
+ game.replacementDraws = 1;
+ assert.deepEqual(getWallStacks(game).map(count), [19, 20, 20, 21]);
+ assert.equal(getWallStacks(game).flat().reduce((sum, stack) => sum + stack, 0), game.wall.length);
+ game.wall.length = 0;
+ assert.ok(getWallStacks(game).flat().every(stack => stack === 0));
 });
