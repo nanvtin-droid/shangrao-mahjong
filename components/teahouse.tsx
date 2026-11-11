@@ -41,19 +41,17 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
   if (!call || call.id === heardCallId.current) return;
   heardCallId.current = call.id;
   if (view !== 'play' || !tableVoice || paused || voiceUnavailable.current) return;
-  const name = game.players[call.player].name;
-  narrator.current?.enqueueCall(`${name}，${tableCallText(call)}`, tableVoices[call.player]);
+  narrator.current?.enqueueCall(tableCallText(call), tableVoices[call.player]);
  }, [game, view, tableVoice, paused]);
  useEffect(() => {
   if (!game || view !== 'play' || paused || game.phase === 'ended' || game.current === 0) return;
   // Let each shout finish before the next bot move. Muting or pausing speech never stalls the game.
-  const baseDelay = difficulty === 'easy' ? 1250 : 850;
-  const delay = tableVoice && !voiceUnavailable.current
-   ? narrationState === 'playing' ? 4500 : narrationState === 'idle' ? 460 : baseDelay
-   : baseDelay;
+  const botDelay = game.difficulty === 'easy' ? 2500 : 1700;
+  const speaking = tableVoice && !voiceUnavailable.current && narrationState === 'playing';
+  const delay = speaking ? 4500 : botDelay;
   const timer = setTimeout(() => setGame(current => current ? stepBot(current) : current), delay);
   return () => clearTimeout(timer);
- }, [game, view, paused, difficulty, tableVoice, narrationState]);
+ }, [game, view, paused, tableVoice, narrationState]);
  const speak=(text:string)=>narrator.current?.speak(text);
  const toggleNarration=()=>{if(narrationState==='paused')narrator.current?.resume();else narrator.current?.pause();};
  const go=(next:View)=>{setView(next);setMobileNav(false);location.hash=next;window.scrollTo({top:0,behavior:'smooth'});narrator.current?.stop();};
