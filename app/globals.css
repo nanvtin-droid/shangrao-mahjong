@@ -305,34 +305,27 @@
 }
 
 /* Top-down game table */
+.active-match { --game-table-width: 920px; }
 .active-match .game-page-heading .page-title { padding: 0; }
 .active-match .game-page-heading .page-title h1 { font-size: 1.35rem; margin: 0; }
 .active-match .game-page-heading .page-title :is(.eyebrow, p) { display: none; }
 .active-match .game-page-heading { margin-bottom: 12px; }
 .active-match .game-layout { display: block; }
 .active-match .game-coach { margin-top: 12px; }
-.active-match .hand-panel { max-width: 760px; margin: 10px auto 0; }
-
-.seated-game-table {
-  --seat-gutter: clamp(10px, 3.2vw, 50px);
-  --plane-top: 2.5%;
-  --plane-bottom: 19%;
-  --river-midpoint: .565;
-  display: grid;
-  grid-template-columns: var(--seat-gutter) minmax(0, 1fr) var(--seat-gutter);
-  grid-template-areas: ". seat-top ." "seat-left table seat-right" ". seat-bottom .";
-  row-gap: 5px;
-  width: min(100%, calc(760px + 2 * var(--seat-gutter)));
-  margin-inline: auto;
-}
+.active-match .hand-panel { max-width: var(--game-table-width); margin: 10px auto 0; }
 
 .mahjong-table.flat-table {
+  --plane-top: .025;
+  --plane-bottom: .19;
+  --river-midpoint: .565;
+  --seat-edge: clamp(6px, 1.3cqw, 13px);
+  --play-inset-block: clamp(30px, 7.6cqw, 64px);
+  --play-inset-inline: clamp(18px, 6.7cqw, 61px);
   position: relative;
   display: block;
   isolation: isolate;
-  container-type: inline-size;
-  grid-area: table;
-  width: 100%;
+  container: game-table / inline-size;
+  width: min(100%, var(--game-table-width));
   aspect-ratio: 1;
   min-height: 0;
   margin-inline: auto;
@@ -369,13 +362,18 @@
   opacity: .48;
   background: repeating-radial-gradient(ellipse, transparent 0 13%, #8ce0c115 13.5% 14%, transparent 15% 23%);
 }
+.table-play-area {
+  position: absolute;
+  inset: var(--play-inset-block) var(--play-inset-inline);
+  container-type: inline-size;
+}
 .table-plane {
   --table-tile-width: 3.5cqw;
   --console-width: 21cqw;
   --wall-short: 2.7cqw;
   --wall-offset: 1.65cqw;
   position: absolute;
-  inset: var(--plane-top) 7% var(--plane-bottom);
+  inset: calc(var(--plane-top) * 100%) 7% calc(var(--plane-bottom) * 100%);
 }
 .table-rack {
   position: absolute;
@@ -582,27 +580,58 @@
 .flat-table .board-bao .tile { width: calc(var(--table-tile-width) * .76); height: auto; aspect-ratio: 5/7; }
 .flat-table .board-bao small, .flat-table .board-dice-result { color: #e2ddba; font-size: 1.55cqw; line-height: 1.2; }
 
-.seated-game-table .board-seat {
-  justify-self: center;
+.flat-table .board-seat {
+  position: absolute;
   z-index: 2;
-  padding: 4px 7px;
+  width: clamp(33px, 12cqw, 106px);
+  height: clamp(31px, 5.65cqw, 50px);
+  padding: 2px .8cqw;
+  border: 1px solid #91c2b250;
   border-radius: 8px;
-  background: #0b373b;
-  box-shadow: 0 2px 6px #031d2640;
+  background: #092f34;
+  box-shadow: 0 2px 6px #031d2655;
 }
-.seated-game-table :is(.board-seat-left, .board-seat-right) {
-  align-self: start;
-  top: calc(var(--plane-top) + (100% - var(--plane-top) - var(--plane-bottom)) * var(--river-midpoint));
+.flat-table :is(.board-seat-top, .board-seat-bottom) { left: 50%; translate: -50% 0; }
+.flat-table .board-seat-top { top: var(--seat-edge); }
+.flat-table .board-seat-bottom { bottom: var(--seat-edge); }
+.flat-table :is(.board-seat-left, .board-seat-right) {
+  --side-midpoint: calc(var(--plane-top) + (1 - var(--plane-top) - var(--plane-bottom)) * var(--river-midpoint));
+  top: calc(var(--play-inset-block) + (100% - 2 * var(--play-inset-block)) * var(--side-midpoint));
   translate: 0 -50%;
-  width: clamp(31px, 6.1vw, 66px);
-  padding-inline: 2px;
 }
-.seated-game-table .board-seat-left { justify-self: start; }
-.seated-game-table .board-seat-right { justify-self: end; }
-.seated-game-table :is(.board-seat-left, .board-seat-right) .board-seat-info { white-space: normal; }
-.seated-game-table .board-seat .player-avatar { height: 32px; width: 32px; }
-.seated-game-table .board-seat-info { color: #f6ebcc; font-size: .69rem; }
-.seated-game-table .board-seat-info p { color: #cbd8c1; font-size: .58rem; }
+.flat-table .board-seat-left { left: var(--seat-edge); }
+.flat-table .board-seat-right { right: var(--seat-edge); }
+.flat-table .board-seat-label { flex-direction: row; gap: .6cqw; min-width: 0; }
+.flat-table .board-seat .player-avatar {
+  width: clamp(14px, 3.2cqw, 30px);
+  height: clamp(14px, 3.2cqw, 30px);
+  font-size: clamp(9px, 1.9cqw, 18px);
+}
+.flat-table .board-seat-info { min-width: 0; color: #f6ebcc; font-size: clamp(7px, 1.3cqw, 12px); }
+.flat-table .board-seat-info small { display: inline; font-size: .83em; }
+.flat-table .board-seat-info p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #cbd8c1;
+  font-size: clamp(7px, 1.1cqw, 10px);
+}
+.flat-table .board-seat .dealer-mark {
+  position: absolute;
+  inset: 1px 1px auto auto;
+  margin: 0;
+  padding: 0 1px;
+  background: #364534;
+  font-size: clamp(6px, 1cqw, 9px);
+  line-height: 1.1;
+}
+
+@container game-table (max-width: 480px) {
+  .flat-table .board-seat { height: clamp(26px, 7.4cqw, 34px); padding-block: 1px; border-radius: 5px; }
+  .flat-table .board-seat-label { flex-direction: column; gap: 1px; }
+  .flat-table .board-seat .player-avatar { border-width: 1px; }
+  .flat-table .board-seat-active .player-avatar { box-shadow: 0 0 0 1px #234938, 0 0 0 2px #edcf80; }
+  .flat-table .board-seat-info p, .flat-table .board-seat-info small span { display: none; }
+}
 
 .foreground-hand {
   position: absolute;
@@ -632,9 +661,6 @@
   }
   .flat-felt { inset: 5px; }
   .flat-table .board-center { border-radius: 8px; }
-  .seated-game-table .board-seat { padding: 3px; }
-  .seated-game-table .board-seat .player-avatar { height: 21px; width: 21px; font-size: .66rem; }
-  .seated-game-table .board-seat-info, .seated-game-table .board-seat-info p { font-size: .52rem; }
   .foreground-hand { inset-inline: 4%; }
   .foreground-hand .player-hand { padding-inline: 1px; gap: 2px; }
   .foreground-hand .player-hand .tile { width: calc((100% - 26px) / 14); }

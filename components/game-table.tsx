@@ -60,11 +60,11 @@ function Seat({ game, seat, paused }: { game: GameState; seat: number; paused: b
       <div className="board-seat-label">
         <span className={`player-avatar ${['self', 'gold', 'peach', 'sage'][seat]}`}>{avatars[seat]}</span>
         <div className="board-seat-info">
-          <strong>{names[seat]} <small>{seatWinds[seat]}家</small></strong>
-          {(game.dealer ?? 0) === seat && <span className="dealer-mark">庄</span>}
+          <strong>{names[seat]} <small>{seatWinds[seat]}<span>家</span></small></strong>
           <p>{seat === 0 ? status : `手牌 ${player.hand.length} 张`}</p>
         </div>
       </div>
+      {(game.dealer ?? 0) === seat && <span className="dealer-mark">庄</span>}
     </div>
   );
 }
@@ -96,10 +96,10 @@ export function GameTable({ game, paused, hand, children }: { game: GameState; p
   const walls = getWallStacks(game);
 
   return (
-    <section className="seated-game-table" aria-label="四人麻将牌桌">
+    <section className="mahjong-table flat-table" aria-label="四人麻将牌桌">
+      <div className="flat-felt" aria-hidden="true" />
       {directions.map((side, seat) => <Seat game={game} seat={seat} paused={paused} key={side} />)}
-      <div className="mahjong-table flat-table">
-        <div className="flat-felt" aria-hidden="true" />
+      <div className="table-play-area">
         <div className="table-plane">
           {[1, 2, 3].map(seat => <OpponentHand game={game} seat={seat} key={seat} />)}
           {walls.map((stacks, seat) => <Wall seat={seat} stacks={stacks} key={seat} />)}
@@ -127,8 +127,8 @@ export function GameTable({ game, paused, hand, children }: { game: GameState; p
           <div className="foreground-melds"><MeldGroups game={game} seat={0} /></div>
           {hand}
         </div>
-        {children}
       </div>
+      {children}
     </section>
   );
 }
