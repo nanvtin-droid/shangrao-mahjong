@@ -91,10 +91,8 @@ export function GameTable({ game, paused, hand, children }: { game: GameState; p
   const walls = getWallStacks(game);
 
   return (
-    <section className="mahjong-table perspective-table" aria-label="四人麻将牌桌">
-      <div className="perspective-felt" aria-hidden="true" />
-      <div className="wood-rail rail-left" aria-hidden="true" />
-      <div className="wood-rail rail-right" aria-hidden="true" />
+    <section className="mahjong-table flat-table" aria-label="四人麻将牌桌">
+      <div className="flat-felt" aria-hidden="true" />
       <div className="table-plane">
         {[1, 2, 3].map(seat => <OpponentHand game={game} seat={seat} key={seat} />)}
         {walls.map((stacks, seat) => <Wall seat={seat} stacks={stacks} key={seat} />)}
