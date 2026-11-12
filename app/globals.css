@@ -341,7 +341,7 @@
   --river-midpoint: .565;
   --seat-edge: clamp(6px, 1.3cqw, 13px);
   --play-inset-block: clamp(30px, 7.6cqw, 64px);
-  --play-inset-inline: clamp(18px, 6.7cqw, 61px);
+  --play-inset-inline: clamp(21px, 6.7cqw, 61px);
   position: relative;
   display: block;
   isolation: isolate;
