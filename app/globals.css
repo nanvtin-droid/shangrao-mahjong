@@ -305,7 +305,7 @@
 }
 
 /* Top-down game table */
-.active-match { --game-table-width: 920px; }
+.active-match { --game-table-width: 640px; }
 .active-match .game-page-heading .page-title { padding: 0; }
 .active-match .game-page-heading .page-title h1 { font-size: 1.35rem; margin: 0; }
 .active-match .game-page-heading .page-title :is(.eyebrow, p) { display: none; }
@@ -313,6 +313,27 @@
 .active-match .game-layout { display: block; }
 .active-match .game-coach { margin-top: 12px; }
 .active-match .hand-panel { max-width: var(--game-table-width); margin: 10px auto 0; }
+
+@media (min-width: 860px) {
+  .active-match {
+    --game-table-width: clamp(300px, calc(100dvh - 250px), 740px);
+    --game-panel-width: clamp(200px, 23vw, 254px);
+  }
+  .active-match .game-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--game-panel-width);
+    align-items: start;
+    width: min(100%, calc(var(--game-table-width) + var(--game-panel-width) + 16px));
+    margin-inline: auto;
+    gap: 16px;
+  }
+  .active-match .hand-panel { min-width: 0; max-width: none; margin: 0; padding: 16px; }
+  .active-match .hand-caption { display: grid; gap: 6px; margin-bottom: 12px; }
+  .active-match .action-row { flex-direction: column; align-items: stretch; }
+  .active-match .game-actions { justify-content: flex-start; }
+  .active-match .hand-panel .mobile-hint-button { display: inline-flex; }
+  .active-match .hand-panel .mobile-hint { display: block; }
+}
 
 .mahjong-table.flat-table {
   --plane-top: .025;
@@ -340,7 +361,7 @@
 }
 .flat-felt {
   position: absolute;
-  inset: 8px;
+  inset: clamp(5px, 1.3cqw, 8px);
   border: 1px solid #ab8059;
   border-radius: 8px;
   background:
