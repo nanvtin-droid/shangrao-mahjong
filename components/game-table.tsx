@@ -96,37 +96,39 @@ export function GameTable({ game, paused, hand, children }: { game: GameState; p
   const walls = getWallStacks(game);
 
   return (
-    <section className="mahjong-table flat-table" aria-label="四人麻将牌桌">
-      <div className="flat-felt" aria-hidden="true" />
-      <div className="table-plane">
-        {[1, 2, 3].map(seat => <OpponentHand game={game} seat={seat} key={seat} />)}
-        {walls.map((stacks, seat) => <Wall seat={seat} stacks={stacks} key={seat} />)}
-        <div className="center-ring">
-          {directions.map((side, seat) => <River game={game} seat={seat} key={side} />)}
-          <div className="board-center">
-            <div className="table-compass-display">
-              {directions.map((side, seat) => (
-                <span className={`table-wind wind-${side}${game.phase !== 'ended' && game.current === seat ? ' wind-active' : ''}`} key={side}>
-                  {seatWinds[seat]}
-                </span>
-              ))}
-              <div className="board-stock"><strong>{game.wall.length}</strong><span>余牌</span></div>
+    <section className="seated-game-table" aria-label="四人麻将牌桌">
+      {directions.map((side, seat) => <Seat game={game} seat={seat} paused={paused} key={side} />)}
+      <div className="mahjong-table flat-table">
+        <div className="flat-felt" aria-hidden="true" />
+        <div className="table-plane">
+          {[1, 2, 3].map(seat => <OpponentHand game={game} seat={seat} key={seat} />)}
+          {walls.map((stacks, seat) => <Wall seat={seat} stacks={stacks} key={seat} />)}
+          <div className="center-ring">
+            {directions.map((side, seat) => <River game={game} seat={seat} key={side} />)}
+            <div className="board-center">
+              <div className="table-compass-display">
+                {directions.map((side, seat) => (
+                  <span className={`table-wind wind-${side}${game.phase !== 'ended' && game.current === seat ? ' wind-active' : ''}`} key={side}>
+                    {seatWinds[seat]}
+                  </span>
+                ))}
+                <div className="board-stock"><strong>{game.wall.length}</strong><span>余牌</span></div>
+              </div>
+              <div className="board-bao">
+                <div><small>翻牌</small><Tile id={game.indicator} small /></div>
+                <ArrowRight size={14} aria-hidden="true" />
+                <div><small>本局宝</small><Tile id={game.wild} small wild /></div>
+              </div>
+              {game.dice && <small className="board-dice-result"><Dices size={13} />{game.dice.join(' + ')} · {seatWinds[game.dealer ?? 0]}家先出</small>}
             </div>
-            <div className="board-bao">
-              <div><small>翻牌</small><Tile id={game.indicator} small /></div>
-              <ArrowRight size={14} aria-hidden="true" />
-              <div><small>本局宝</small><Tile id={game.wild} small wild /></div>
-            </div>
-            {game.dice && <small className="board-dice-result"><Dices size={13} />{game.dice.join(' + ')} · {seatWinds[game.dealer ?? 0]}家先出</small>}
           </div>
         </div>
+        <div className="foreground-hand">
+          <div className="foreground-melds"><MeldGroups game={game} seat={0} /></div>
+          {hand}
+        </div>
+        {children}
       </div>
-      {directions.map((side, seat) => <Seat game={game} seat={seat} paused={paused} key={side} />)}
-      <div className="foreground-hand">
-        <div className="foreground-melds"><MeldGroups game={game} seat={0} /></div>
-        {hand}
-      </div>
-      {children}
     </section>
   );
 }
