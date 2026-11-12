@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowRight, Dices } from 'lucide-react';
 import { dealerFromDice, getWallStacks, seatWinds, type DiceRoll, type GameState } from '@/lib/mahjong';
 import { Tile } from './tile';
@@ -23,22 +23,27 @@ function Wall({ seat, stacks }: { seat: number; stacks: number[] }) {
 }
 
 function River({ game, seat }: { game: GameState; seat: number }) {
-  const river = useRef<HTMLDivElement>(null);
   const discards = game.players[seat].discards;
-  useEffect(() => {
-    if (river.current) river.current.scrollTop = river.current.scrollHeight;
-  }, [discards.length]);
+  const horizontal = seat === 0 || seat === 2;
+  const count = discards.length;
+  const columns = horizontal
+    ? Math.max(9, Math.ceil(Math.sqrt(count * 8)))
+    : Math.max(3, Math.ceil(Math.sqrt(count)), Math.min(6, Math.ceil(count / 4)));
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const sizing = { '--river-columns': columns, '--river-rows': rows } as CSSProperties;
 
   return (
     <section className={`board-river river-${directions[seat]}`} aria-label={`${names[seat]}的牌河`}>
       <header><span>{seatWinds[seat]}家弃牌</span><small>{discards.length} 张</small></header>
-      <div className="board-river-tiles" ref={river} tabIndex={discards.length ? 0 : undefined}>
-        {discards.map((tile, index) => (
-          <span key={index} className={game.lastDiscard?.player === seat && index === discards.length - 1 ? 'latest-discard' : undefined}>
-            <Tile id={tile} small wild={tile === game.wild} />
-          </span>
-        ))}
-        {!discards.length && <small className="river-empty">尚未出牌</small>}
+      <div className="board-river-space">
+        <div className="board-river-tiles" style={sizing}>
+          {discards.map((tile, index) => (
+            <span key={index} className={game.lastDiscard?.player === seat && index === discards.length - 1 ? 'latest-discard' : undefined}>
+              <Tile id={tile} small wild={tile === game.wild} />
+            </span>
+          ))}
+          {!discards.length && <small className="river-empty">尚未出牌</small>}
+        </div>
       </div>
     </section>
   );

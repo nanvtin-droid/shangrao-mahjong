@@ -311,20 +311,17 @@
 .active-match .game-page-heading { margin-bottom: 12px; }
 .active-match .game-layout { display: block; }
 .active-match .game-coach { margin-top: 12px; }
-.active-match .hand-panel { margin-top: 10px; }
+.active-match .hand-panel { max-width: 760px; margin: 10px auto 0; }
 
 .mahjong-table.flat-table {
-  --table-tile-width: clamp(19px, 2.25vw, 33px);
-  --console-width: clamp(104px, 12vw, 162px);
-  --wall-short: clamp(13px, 1.9vw, 24px);
-  --wall-offset: clamp(7px, 1vw, 13px);
   position: relative;
   display: block;
   isolation: isolate;
-  width: 100%;
-  aspect-ratio: 1.83;
-  min-height: 438px;
-  max-height: min(620px, 69dvh);
+  container-type: inline-size;
+  width: min(100%, 760px);
+  aspect-ratio: 1;
+  min-height: 0;
+  margin-inline: auto;
   overflow: hidden;
   border: 2px solid #3e271b;
   border-radius: 14px;
@@ -359,6 +356,10 @@
   background: repeating-radial-gradient(ellipse, transparent 0 13%, #8ce0c115 13.5% 14%, transparent 15% 23%);
 }
 .table-plane {
+  --table-tile-width: 3.5cqw;
+  --console-width: 21cqw;
+  --wall-short: 2.7cqw;
+  --wall-offset: 1.65cqw;
   position: absolute;
   inset: 2.5% 7% 19%;
 }
@@ -371,7 +372,7 @@
 }
 .table-rack .board-opponent-hand,
 .table-rack .board-meld { gap: 1px; }
-.rack-top { inset: 0 10% auto; min-height: 35px; }
+.rack-top { inset: 1% 10% auto; min-height: 4.8cqw; }
 .rack-top .board-opponent-hand .tile { height: calc(var(--table-tile-width) * 1.33); }
 .rack-left { inset: 15% auto 8% 2%; }
 .rack-right { inset: 15% 2% 8% auto; }
@@ -400,8 +401,8 @@
 .flat-table .tile.wild .tile-sprite-clip { filter: none; }
 
 .flat-table .tile-wall { position: absolute; }
-.flat-table .wall-top { inset: 13% 20% auto; }
-.flat-table .wall-bottom { inset: auto 20% 0; }
+.flat-table .wall-top { inset: 10% 20% auto; }
+.flat-table .wall-bottom { inset: auto 20% -2%; }
 .flat-table .wall-left { inset: 21% auto 15% 10%; }
 .flat-table .wall-right { inset: 21% 10% 15% auto; }
 
@@ -454,53 +455,71 @@
 
 .center-ring {
   position: absolute;
-  left: 50%;
-  top: 54%;
-  transform: translate(-50%, -50%);
+  inset: 19% 17% 6%;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--console-width) minmax(0, 1fr);
-  grid-template-rows: minmax(33px, 1fr) auto minmax(33px, 1fr);
+  grid-template-rows: minmax(0, 1fr) 23.5cqw minmax(0, 1fr);
   grid-template-areas: "river-top river-top river-top" "river-left center river-right" "river-bottom river-bottom river-bottom";
-  gap: 4px;
-  width: 65%;
-  height: 62%;
+  gap: clamp(2px, .65cqw, 5px);
 }
 .flat-table .board-river {
   border: 0;
   border-radius: 0;
   background: transparent;
-  padding: 0;
+  padding: 0 2px 2px;
 }
-.flat-table .board-river header { color: #ccf1db; }
-.flat-table .board-river header small { color: #c0e1ce; }
-.flat-table .board-river-tiles { gap: 2px; padding: 2px; scrollbar-width: none; }
+.flat-table .board-river header {
+  flex-shrink: 0;
+  gap: .6cqw;
+  margin-block: 2px;
+  font-size: clamp(7px, 1.6cqw, 12px);
+  line-height: 1.2;
+  color: #ccf1db;
+}
+.flat-table .board-river header small { color: #c0e1ce; font-size: inherit; }
+.board-river-space {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+}
+.flat-table .board-river-tiles {
+  /* Fit a whole number of rows, including the last tile's highlight. */
+  --river-gap: clamp(1px, 1cqh, 3px);
+  --river-tile-width: min(
+    var(--river-tile-cap),
+    calc((100cqw - var(--river-columns) * var(--river-gap) - 4px) / var(--river-columns)),
+    calc((100cqh - var(--river-rows) * var(--river-gap) - 4px) / var(--river-rows) / 1.4)
+  );
+  display: grid;
+  grid-template-columns: repeat(var(--river-columns), var(--river-tile-width));
+  justify-content: center;
+  align-content: start;
+  height: 100%;
+  gap: var(--river-gap);
+  padding: 2px;
+  overflow: visible;
+}
 .flat-table .board-river .tile {
-  width: calc(var(--table-tile-width) * .82);
+  width: var(--river-tile-width);
   height: auto;
   aspect-ratio: 5 / 7;
 }
-.flat-table :is(.river-top, .river-bottom) .board-river-tiles {
-  flex: 1;
-  align-content: start;
-  max-width: calc(var(--table-tile-width) * 9 + 30px);
-  align-self: center;
-  width: 100%;
-}
-.flat-table .river-top { justify-content: end; }
-.flat-table .river-top .board-river-tiles { align-content: safe end; }
+.flat-table :is(.river-top, .river-bottom) .board-river-tiles { --river-tile-cap: 6.1cqw; }
+.flat-table :is(.river-left, .river-right) .board-river-tiles { --river-tile-cap: 20cqw; }
+.flat-table .river-bottom .board-river-tiles { align-content: end; }
+.flat-table :is(.river-left, .river-right) .board-river-tiles { align-content: center; }
 .flat-table .river-bottom header { order: 1; }
-.flat-table :is(.river-left, .river-right) {
-  align-self: stretch;
-  width: min(100%, calc(var(--table-tile-width) * 2 + 10px));
+.flat-table .river-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #b6e1d2;
+  font-size: clamp(7px, 1.5cqw, 11px);
 }
-.flat-table .river-left { justify-self: end; }
-.flat-table .river-right { justify-self: start; }
-.flat-table .river-empty { color: #b6e1d2; }
 
 .flat-table .board-center {
   justify-self: stretch;
-  gap: 4px;
-  padding: 5px 7px;
+  gap: .45cqw;
+  padding: .65cqw;
   border: 2px solid #c6a76b;
   border-radius: 12px;
   background: linear-gradient(145deg, #355552, #1d292d 75%);
@@ -511,28 +530,31 @@
   display: grid;
   place-items: center;
   width: 100%;
-  min-height: 81px;
+  min-height: 11cqw;
   border: 1px solid #a2b8a553;
   border-radius: 7px;
   background: conic-gradient(from 45deg, #173540, #202e32, #1b373d, #213e46, #173540);
 }
-.table-wind { position: absolute; color: #cedbd1; font-size: .75rem; font-weight: 700; line-height: 1; }
-.wind-top { top: 5px; left: 50%; translate: -50% 0; }
-.wind-bottom { bottom: 4px; left: 50%; translate: -50% 0; }
-.wind-left { left: 5px; top: 50%; translate: 0 -50%; }
-.wind-right { right: 5px; top: 50%; translate: 0 -50%; }
+.table-wind { position: absolute; color: #cedbd1; font-size: 1.65cqw; font-weight: 700; line-height: 1; }
+.wind-top { top: .65cqw; left: 50%; translate: -50% 0; }
+.wind-bottom { bottom: .55cqw; left: 50%; translate: -50% 0; }
+.wind-left { left: .65cqw; top: 50%; translate: 0 -50%; }
+.wind-right { right: .65cqw; top: 50%; translate: 0 -50%; }
 .wind-active { color: #81e8ff; text-shadow: 0 0 8px #35bdfb; }
 .flat-table .board-stock { flex-direction: column; align-items: center; gap: 0; }
 .flat-table .board-stock strong {
   color: #83ddff;
-  font: 700 clamp(1.5rem, 3vw, 2.65rem)/.95 ui-monospace, monospace;
+  font: 700 5.1cqw/.95 ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 10px #2ac4fc70;
 }
-.flat-table .board-stock span { color: #c8dbdc; font-size: .56rem; }
-.flat-table .board-bao { gap: 5px; padding-bottom: 4px; }
+.flat-table .board-stock span { color: #c8dbdc; font-size: 1.55cqw; line-height: 1; }
+.flat-table .board-bao { gap: .85cqw; }
+.flat-table .board-bao > div { gap: .45cqw; }
+.flat-table .board-bao svg, .flat-table .board-dice-result svg { width: 1.9cqw; height: 1.9cqw; }
+.flat-table .board-bao svg { margin-bottom: .8cqw; }
 .flat-table .board-bao .tile { width: calc(var(--table-tile-width) * .76); height: auto; aspect-ratio: 5/7; }
-.flat-table .board-bao small, .flat-table .board-dice-result { color: #e2ddba; font-size: .58rem; }
+.flat-table .board-bao small, .flat-table .board-dice-result { color: #e2ddba; font-size: 1.55cqw; line-height: 1.2; }
 
 .flat-table .board-seat {
   position: absolute;
@@ -542,9 +564,9 @@
   background: #082c2fce;
   box-shadow: 0 3px 7px #031d26a8;
 }
-.flat-table .board-seat-top { top: 2%; right: 15%; }
-.flat-table .board-seat-left { top: 27%; left: 1.8%; }
-.flat-table .board-seat-right { top: 27%; right: 1.8%; }
+.flat-table .board-seat-top { top: 2%; right: 3%; }
+.flat-table .board-seat-left { top: 14%; left: 1.8%; }
+.flat-table .board-seat-right { top: 14%; right: 1.8%; }
 .flat-table .board-seat-bottom { bottom: 12%; left: 2%; }
 .flat-table .board-seat-bottom .board-seat-label { flex-direction: column; gap: 3px; }
 .flat-table .board-seat .player-avatar { height: 35px; width: 35px; }
@@ -563,7 +585,7 @@
   overflow: visible;
 }
 .foreground-hand .player-hand .tile {
-  width: min(49px, calc((100% - 39px) / 14));
+  width: min(5.9cqw, calc((100% - 39px) / 14));
   aspect-ratio: 5/7;
   height: auto;
 }
@@ -571,41 +593,18 @@
   box-shadow: 0 0 0 1px #16382e55;
 }
 .foreground-melds .board-melds { justify-content: flex-end; gap: 6px; padding-right: 7px; }
-.foreground-melds .board-meld .tile { width: var(--table-tile-width); aspect-ratio: 5/7; height: auto; }
+.foreground-melds .board-meld .tile { width: 3.5cqw; aspect-ratio: 5/7; height: auto; }
 
 @media (max-width: 760px) {
   .mahjong-table.flat-table {
-    --table-tile-width: clamp(13px, 3.85vw, 20px);
-    --console-width: clamp(65px, 22vw, 106px);
-    --wall-short: clamp(10px, 3.2vw, 16px);
-    --wall-offset: clamp(6px, 2vw, 8px);
-    min-height: 0;
-    max-height: none;
-    aspect-ratio: .84;
     border-radius: 10px;
   }
   .flat-felt { inset: 5px; }
-  .table-plane { inset: 3% 5% 18%; }
-  .center-ring { width: 67%; gap: 2px; }
-  .flat-table .board-river header,
-  .flat-table .board-river header small,
-  .flat-table .river-empty { font-size: .48rem; }
-  .flat-table .board-river header { gap: 2px; }
-  .table-compass-display { min-height: 57px; }
-  .table-wind { font-size: .54rem; }
-  .wind-top { top: 2px; }
-  .wind-bottom { bottom: 2px; }
-  .wind-left { left: 2px; }
-  .wind-right { right: 2px; }
-  .flat-table .board-bao small, .flat-table .board-dice-result { font-size: .46rem; }
-  .flat-table .board-center { padding: 3px; border-radius: 8px; gap: 2px; }
-  .flat-table .board-bao { gap: 3px; }
-  .flat-table .board-dice-result svg { width: 9px; height: 9px; }
+  .flat-table .board-center { border-radius: 8px; }
   .flat-table .board-seat { padding: 3px; }
   .flat-table .board-seat .player-avatar { height: 23px; width: 23px; font-size: .66rem; }
   .flat-table .board-seat-info, .flat-table .board-seat-info p { font-size: .49rem; }
   .flat-table .board-seat-info small { font-size: .48rem; }
-  .flat-table .board-seat-top { right: 10%; }
   .flat-table :is(.board-seat-left, .board-seat-right) { top: 10%; }
   .flat-table .board-seat-bottom { left: 1%; bottom: 16%; }
   .flat-table .board-seat-bottom .board-seat-info p { display: none; }
