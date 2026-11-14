@@ -5,11 +5,12 @@ import { lessons,quizzes,levelNames,type Lesson } from '@/lib/content';
 import { createGame,discardTile,playerActions,act,stepBot,getHint,tileName,tableCallText,type GameState,type Difficulty,type Action,type DiceRoll } from '@/lib/mahjong';
 import { TeahouseAudio,NarrationPlayer,type NarrationState } from '@/lib/audio';
 import { Tile } from './tile';
+import { MahjongTips } from './mahjong-tips';
 import { DiceOpening, GameTable } from './game-table';
 
-type View='home'|'learn'|'practice'|'play'|'rules'|'profile';
+type View='home'|'learn'|'practice'|'play'|'rules'|'tips'|'profile';
 type RecordItem={key:string;type:'lesson'|'quiz'|'game';title:string;at:number;won?:boolean;points?:number};
-const navs:{id:View;label:string;icon:typeof Home}[]=[{id:'home',label:'茶馆首页',icon:Home},{id:'learn',label:'学点门道',icon:BookOpen},{id:'practice',label:'练练手感',icon:Target},{id:'play',label:'入座开局',icon:CircleDot},{id:'rules',label:'上饶规矩',icon:ScrollText}];
+const navs:{id:View;label:string;icon:typeof Home}[]=[{id:'home',label:'茶馆首页',icon:Home},{id:'learn',label:'学点门道',icon:BookOpen},{id:'practice',label:'练练手感',icon:Target},{id:'play',label:'入座开局',icon:CircleDot},{id:'rules',label:'上饶规矩',icon:ScrollText},{id:'tips',label:'麻将技巧',icon:Lightbulb}];
 const tableVoices = [{ rate: 1.12, pitch: 1 }, { rate: 1.22, pitch: 1.16 }, { rate: 1.13, pitch: 1.27 }, { rate: 1.04, pitch: .78 }];
 const difficultyNames={easy:'新手茶桌',medium:'茶馆常客',hard:'高手切磋'};
 const mergeRecords=(a:RecordItem[],b:RecordItem[])=>Array.from(new Map([...a,...b].map(r=>[r.key,r])).values());
@@ -136,6 +137,7 @@ export default function Teahouse({signedIn,displayName}:{signedIn:boolean;displa
     </>}
    </>}
    {view==='rules'&&<Rules/>}
+   {view==='tips'&&<MahjongTips onPlay={()=>go('play')}/>}
    {view==='profile'&&<><PageTitle eyebrow="YOUR LITTLE TEAHOUSE" title="慢慢打，自有长进。" text="课程、练习与完成的牌局，都在这里留下一点成长的痕迹。"/><section className="profile-hero"><span className="profile-avatar">茶</span><div><h2>{displayName}</h2><p>{completed<4?'初来乍到 · 一切好牌的开始':completed<7?'渐入佳境 · 有点茶馆常客的样子':'茶馆高手 · 规矩已在心中'}</p><span className="sync-status"><Cloud size={15}/>{cloudStatus}</span></div>{!signedIn?<a className="button primary" href="/signin-with-chatgpt?return_to=%2F%23profile" target="_top">登录并同步进度<ArrowRight size={16}/></a>:<span className="pill"><ShieldCheck size={15}/> 已登录</span>}</section><div className="stats-grid">{[[completed+'/'+lessons.length,'学会的门道'],[correct+'/'+quizzes.length,'掌握的趣题'],[games.length,'完成的牌局'],[wins,'自己的胡牌']].map(([v,l])=><div className="stat-card" key={l}><strong>{v}</strong><span>{l}</span></div>)}</div><div className="profile-grid"><section className="paper-panel"><div className="section-heading"><h3>茶馆小成就</h3><Trophy size={21}/></div>{[[completed>=1,'第一口茶','完成第一节课程'],[correct>=5,'略懂略懂','掌握五道练习题'],[games.length>=1,'正式入席','完成第一场对弈'],[completed===lessons.length,'规矩门儿清','学完全部十节小课']].map(([achieved,title,desc])=><div className={`achievement ${achieved?'earned':''}`} key={String(title)}><span>{achieved?<CheckCircle2 size={24}/>:<Leaf size={24}/>}</span><div><strong>{title}</strong><p>{desc}</p></div><small>{achieved?'已获得':'待解锁'}</small></div>)}</section><section className="paper-panel"><h3>最近的茶馆小记</h3>{records.length?records.slice().sort((a,b)=>b.at-a.at).slice(0,7).map(r=><div className="record-row" key={r.key}><span>{r.type==='lesson'?<BookOpen size={18}/>:r.type==='quiz'?<Target size={18}/>:<CircleDot size={18}/>}</span><div><strong>{r.title}</strong><small>{new Date(r.at).toLocaleDateString('zh-CN')} · {r.type==='lesson'?'课程已学会':r.type==='quiz'?'题目已掌握':r.won?'自己胡牌':'完成一局'}</small></div><Check size={16}/></div>):<div className="empty-state"><Coffee size={36}/><p>茶刚沏好，故事还没开始。</p><button className="text-button" onClick={()=>openLesson(lessons[0])}>从第一课开始<ArrowRight size={16}/></button></div>}</section></div><div className="gentle-note"><Cloud size={20}/><span>{signedIn?'课程与练习成绩随账号同步；正在进行的牌局仅保存在当前设备。手机登录同一账号，即可继续学习。':'当前为本机体验。登录后可把课程、练习及完成的牌局同步到同一账号；正在进行的牌局保存在当前设备。'}</span></div></>}
    <footer className="page-footer"><span><span className="footer-mark">饶</span> 一方水土，一桌牌趣。</span><div><button onClick={()=>go('rules')}>规则与来源</button><span>·</span><button onClick={()=>setSettings(true)}>声音设置</button><span>·</span><span>纯学习娱乐</span></div></footer>
    </main>
