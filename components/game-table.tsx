@@ -24,13 +24,9 @@ function Wall({ seat, stacks }: { seat: number; stacks: number[] }) {
 
 function River({ game, seat }: { game: GameState; seat: number }) {
   const discards = game.players[seat].discards;
-  const horizontal = seat === 0 || seat === 2;
-  const count = discards.length;
-  const columns = horizontal
-    ? Math.max(9, Math.ceil(Math.sqrt(count * 8)))
-    : Math.max(3, Math.ceil(Math.sqrt(count)), Math.min(6, Math.ceil(count / 4)));
-  const rows = Math.max(1, Math.ceil(count / columns));
-  const sizing = { '--river-columns': columns, '--river-rows': rows } as CSSProperties;
+  // Classic river shape: every seat gets eight tiles per row. The two side
+  // rivers are rotated, so those rows read as vertical columns on screen.
+  const sizing = { '--river-columns': 8 } as CSSProperties;
 
   return (
     <section className={`board-river river-${directions[seat]}`} aria-label={`${names[seat]}的牌河`}>
